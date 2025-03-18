@@ -8,7 +8,7 @@ import config from './config/env.js';
 import { stats } from './stats.js';
 import logger from './logger.js';
 
-// Importaciones de rutas
+// Rutas (las tuyas)
 import uploadRoutes from './routes/uploadRoutes.js';
 import loginRoutes from './routes/loginRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
@@ -20,11 +20,10 @@ import { getLogs, clearLogs } from './logs.js';
 import { initSheetCache } from './services/sheetCacheService.js';
 
 const app = express();
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Aquí volviste al MemoryStore, así que NO uses connect-redis
+// Configuración de sesión con MemoryStore por defecto
 app.use(session({
   secret: 'mi_clave_secreta',
   resave: false,
@@ -34,7 +33,7 @@ app.use(session({
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Rutas
+// Tus rutas:
 app.use('/', uploadRoutes);
 app.get('/test-json', (req, res) => {
   logger.info("Endpoint /test-json ejecutado");
@@ -58,7 +57,6 @@ app.delete('/logs', (req, res) => {
   res.json({ message: "Logs cleared" });
 });
 
-// Recursos estáticos
 app.use('/css', express.static(path.join(__dirname, '..', 'public', 'css')));
 app.use('/img', express.static(path.join(__dirname, '..', 'public', 'img')));
 app.use('/izzi_cards', express.static(path.join(process.cwd(), 'izzi_cards')));
@@ -76,12 +74,13 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
-// Middleware de errores
+// Middleware global de errores
 app.use((err, req, res, next) => {
   logger.error(err.stack);
   res.status(500).json({ error: err.message });
 });
 
+// Inicia tu servidor
 const PORT = process.env.PORT || config.PORT || 3001;
 initSheetCache()
   .then(() => {
