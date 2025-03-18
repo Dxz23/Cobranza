@@ -1,102 +1,51 @@
-import path from 'path';
+// src/controllers/uploadController.js
 import multer from 'multer';
-import XLSX from 'xlsx';
-import PQueue from 'p-queue';
-import whatsappService from '../services/whatsappService.js';
-import appendBatchToSheet from '../services/googleSheetsBatchService.js';
+import path from 'path';
+import fs from 'fs';
+import processExcelAndSendTemplate from '../scripts/processExcelAndSendTemplate.js';
+import overwriteSheetWithBatch from '../services/googleSheetsBatchService.js';
+import logger from '../logger.js';
 
-// Configuración de multer para guardar los archivos subidos en la carpeta "uploads"
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(process.cwd(), 'uploads'));
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-const upload = multer({ storage });
-
-// Función para procesar el Excel y enviar la plantilla
-async function processExcelAndSendTemplate(filePath) {
-  try {
-    // Lee el archivo Excel
-    const workbook = XLSX.readFile(filePath);
-    const sheetName = workbook.SheetNames[0];
-    const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-
-    // Configuración de la plantilla
-    const templateName = 'auto_pay_reminder_cobranza';
-    const languageCode = 'es_MX';
-    const validPhoneRegex = /^\+52\d{10}$/;
-    const queue = new PQueue({ concurrency: 10 });
-    let registrosBatch = [];
-
-    async function processRow(row) {
-      let telefono = row.TELEFONO?.toString().trim();
-      if (!telefono) return;
-      if (!telefono.startsWith('+52')) telefono = '+52' + telefono;
-
-      let estadoEnvio = "";
-
-      if (!validPhoneRegex.test(telefono)) {
-        console.log(`El número ${telefono} no tiene el formato esperado.`);
-        estadoEnvio = "Mensaje Invalido";
-      } else {
-        try {
-          // Se define el componente "body" con parámetros
-          const components = [
-            {
-              type: 'body',
-              parameters: [
-                { type: 'text', text: row.NOMBRE_CLIENTE || '' },
-                { type: 'text', text: row.N_CUENTA || '' }
-              ]
-            }
-          ];
-          await whatsappService.sendTemplateMessage(telefono, templateName, languageCode, components);
-          console.log(`Mensaje enviado a: ${telefono}`);
-          estadoEnvio = "Mensaje enviado";
-        } catch (error) {
-          console.error(`Error enviando a ${telefono}:`, error.response?.data || error);
-          estadoEnvio = "Mensaje Invalido";
-        }
-      }
-      return [
-        telefono,
-        row.NOMBRE_CLIENTE || '',
-        row.N_CUENTA || '',
-        row.SALDO_VENCIDO || '',
-        row.RPT || '',
-        row.CLAVE_VENDEDOR || '',
-        estadoEnvio
-      ];
-    }
-
-    const tasks = data.map(row => queue.add(() => processRow(row)));
-    const results = await Promise.all(tasks);
-    registrosBatch = results.filter(registro => registro);
-
-    if (registrosBatch.length > 0) {
-      const batchResponse = await appendBatchToSheet(registrosBatch);
-      console.log('Batch actualizado en Google Sheets:', batchResponse);
-    }
-    console.log('Proceso de envío masivo de plantillas finalizado.');
-    return { message: "✔Mensaje enviado con exito" };
-  } catch (error) {
-    console.error('Error en processExcelAndSendTemplate:', error);
-    return { error: error.message };
-  }
+// Aseguramos que las carpetas de destino existan
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Middleware para subir el archivo y procesarlo
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const newName = Date.now() + '-' + file.originalname;
+    cb(null, newName);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 * 1024 } // 5 GB
+});
+
 export const uploadExcelAndSend = [
   upload.single('excelFile'),
   async (req, res) => {
+    logger.info("Se ejecutó el endpoint /upload");
     if (!req.file) {
-      return res.status(400).json({ error: 'No se ha subido ningún archivo.' });
+      return res.status(400).json({ error: 'No se ha subido ningún archivo Excel.' });
     }
-    const filePath = req.file.path;
-    const result = await processExcelAndSendTemplate(filePath);
-    res.json(result); // Se envía respuesta en formato JSON
+    const excelFilePath = req.file.path;
+    try {
+      // Procesa el Excel y obtiene un array de registros
+      const result = await processExcelAndSendTemplate(excelFilePath);
+      // Supongamos que result.records es el array con los registros procesados
+      if (!result.records || !Array.isArray(result.records)) {
+        return res.status(500).json({ error: 'No se obtuvieron registros procesados.' });
+      }
+      // Sobrescribe la hoja con los nuevos registros
+      await overwriteSheetWithBatch(result.records);
+      return res.status(200).json({ message: '✔ Reporte actualizado exitosamente' });
+    } catch (error) {
+      logger.error('Error en uploadExcelAndSend:', error);
+      return res.status(500).json({ error: error.message });
+    }
   }
 ];
