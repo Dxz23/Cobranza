@@ -18,7 +18,5 @@
     "p-queue": "^7.1.0",
     "winston": "^3.17.0",
     "xlsx": "^0.18.5"
-    // "redis": "^4.6.7",      <--- si lo tenías, bórralo
-    // "connect-redis": "^6", <--- bórralo también
   }
 }
