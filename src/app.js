@@ -5,11 +5,10 @@ import session from 'express-session';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// ===== [1] IMPORTACIONES RELACIONADAS CON REDIS =====
-import RedisStore from 'connect-redis';
+// IMPORTANTE: así se importa connect-redis en v6
+import connectRedis from 'connect-redis';
 import { createClient } from 'redis';
 
-// Resto de tus importaciones
 import config from './config/env.js';
 import { stats } from './stats.js';
 import logger from './logger.js';
@@ -31,66 +30,61 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* ==============================================================
-   2) CONFIGURACIÓN DE LA SESIÓN CON REDIS
-   ============================================================== */
+// ==========================================
+//  1) Configurar session con connect-redis
+// ==========================================
 async function configurarSessionRedis() {
-  // Creamos el cliente Redis. 
-  // Usamos la variable de entorno REDIS_URL que tendrás que configurar en Railway.
+  // Crea cliente de Redis usando tu variable de entorno (Railway)
   const redisClient = createClient({
-    url: process.env.REDIS_URL // Ejemplo: redis://default:clave@tu-host-redis:6379
+    url: process.env.REDIS_URL 
+    // ejemplo: "redis://default:password@tu-host-redis:6379"
   });
-
-  // Conectamos el cliente
+  // Conecta a Redis
   await redisClient.connect();
 
-  // Crear la instancia de RedisStore
-  const redisStore = new RedisStore({
-    client: redisClient,
-    prefix: 'whatsapp:sess:' // (opcional) prefijo para las claves de sesión
-  });
+  // connectRedis v6 se usa así:
+  const RedisStore = connectRedis(session);
 
-  // Reemplazamos la configuración de 'session' usando redisStore
+  // Aplica la sesión con RedisStore
   app.use(session({
-    store: redisStore,
+    store: new RedisStore({
+      client: redisClient,
+      prefix: 'whatsapp:sess:' // opcional, para las llaves en Redis
+    }),
     secret: 'mi_clave_secreta',
     resave: false,
-    saveUninitialized: false, // En producción suele ir en false
+    saveUninitialized: false,
     cookie: {
-      secure: false, // Cambia a true si usas HTTPS
+      secure: false, // pon true si tu app corre con HTTPS
       httpOnly: true,
-      maxAge: 1000 * 60 * 60 // 1 hora (en ms)
+      maxAge: 1000 * 60 * 60 // 1 hora
     }
   }));
 }
 
-// Llamamos a la función de configuración
-// (Node 18+ permite top-level await; si tu entorno no lo soporta,
-//  puedes hacerlo en el .then del initSheetCache)
+// Llamada a la función. 
+// Si tu entorno no soporta top-level await, hazlo dentro de un .then (ver más abajo).
 await configurarSessionRedis();
 
-// __filename y __dirname
+// Definir __dirname y __filename (si no lo tenías ya)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/* ==============================================================
-   RUTAS
-   ============================================================== */
-// Monta primero la ruta /upload y un endpoint de prueba para confirmar la respuesta JSON
+// ==========================================
+//   2) RUTAS
+// ==========================================
 app.use('/', uploadRoutes);
 app.get('/test-json', (req, res) => {
   logger.info("Endpoint /test-json ejecutado");
   res.json({ message: "Test JSON OK" });
 });
 
-// Luego las demás rutas
 app.use('/', loginRoutes);
 app.use('/', webhookRoutes);
 app.use('/', uploadComprobanteRoutes);
 app.use('/', comprobantesRoutes);
 app.use('/', uploadIzziCardsRoutes);
 
-// Endpoints de logs y estadísticas
 app.get('/stats', (req, res) => res.json({ message: "Stats aquí", stats }));
 app.get('/logs', (req, res) => {
   logger.info('Endpoint /logs accedido');
@@ -102,12 +96,12 @@ app.delete('/logs', (req, res) => {
   res.json({ message: "Logs cleared" });
 });
 
-// Servir recursos estáticos
+// Servir archivos estáticos
 app.use('/css', express.static(path.join(__dirname, '..', 'public', 'css')));
 app.use('/img', express.static(path.join(__dirname, '..', 'public', 'img')));
 app.use('/izzi_cards', express.static(path.join(process.cwd(), 'izzi_cards')));
 
-// Ruta protegida que requiere autenticación
+// Ruta protegida
 function isAuthenticated(req, res, next) {
   if (req.session && req.session.loggedIn) return next();
   res.redirect('/login');
@@ -121,15 +115,15 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
-// Middleware global de manejo de errores
+// Middleware de errores
 app.use((err, req, res, next) => {
   logger.error(err.stack);
   res.status(500).json({ error: err.message });
 });
 
-/* ==============================================================
-   INICIALIZACIÓN DEL SERVIDOR
-   ============================================================== */
+// ==========================================
+//   3) INICIAR EL SERVIDOR
+// ==========================================
 const PORT = process.env.PORT || config.PORT || 3001;
 
 initSheetCache()
