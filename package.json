@@ -6,7 +6,7 @@
     "node": "16.x"
   },
   "scripts": {
-    "start": "cross-env NODE_OPTIONS=--openssl-legacy-provider node ./src/app.js",
+    "start": "node ./src/app.js",
     "transform": "node ./src/scripts/transformarExcel.js",
     "send": "node ./src/scripts/enviarTemplateMasivoExcel.js"
   },
