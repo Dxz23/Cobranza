@@ -1,25 +1,22 @@
 // src/services/googleSheetsBatchService.js
-import path from 'path';
 import { google } from 'googleapis';
+import { getAuthClient } from './sheetCacheService.js';
 
 const sheets = google.sheets('v4');
 const SPREADSHEET_ID = '1_XoahssK8yMJyexIw_kaUBNpY4rP2vSpavIYBPyl7kI';
 
 async function overwriteSheetWithBatch(batchData) {
-  const auth = new google.auth.GoogleAuth({
-    keyFile: path.join(process.cwd(), 'src/credentials', 'credentials.json'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
-  const authClient = await auth.getClient();
+  // 1) Autenticación unificada
+  const authClient = await getAuthClient();
 
-  // Limpia el rango (suponiendo que la fila 1 es el encabezado)
+  // 2) Limpia el rango (A2:G)
   await sheets.spreadsheets.values.clear({
     spreadsheetId: SPREADSHEET_ID,
     range: 'reservas!A2:G',
     auth: authClient,
   });
 
-  // Escribe los datos exactamente como vienen del Excel, empezando en A2
+  // 3) Escribe los datos
   const request = {
     spreadsheetId: SPREADSHEET_ID,
     range: 'reservas!A2',
