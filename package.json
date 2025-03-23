@@ -2,9 +2,7 @@
   "name": "mi-proyecto-whatsapp",
   "version": "1.0.0",
   "type": "module",
-  "engines": {
-    "node": "16.x"
-  },
+  "engines": { "node": "16.x" },
   "scripts": {
     "start": "cross-env NODE_OPTIONS=--openssl-legacy-provider node ./src/app.js",
     "transform": "node ./src/scripts/transformarExcel.js",
