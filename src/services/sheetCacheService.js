@@ -1,56 +1,51 @@
 // src/services/sheetCacheService.js
+
 import path from 'path';
 import fs from 'fs';
 import { google } from 'googleapis';
 
-// Reemplaza con tu Spreadsheet ID real
+// REEMPLAZA con tu ID de hoja real, si es distinto
 const SPREADSHEET_ID = '1_XoahssK8yMJyexIw_kaUBNpY4rP2vSpavIYBPyl7kI';
 
 /**
- * 1) Función unificada para obtener authClient:
- *    - Si está `process.env.GOOGLE_DRIVE_CREDENTIALS`, la parsea.
- *    - Si NO, lee src/credentials/credentials.json usando fs (sin require).
+ * getAuthClient():
+ *   - Solo lee el archivo local src/credentials/credentials.json
+ *   - NO usa variables de entorno
  */
 export async function getAuthClient() {
-  // 1a) ¿Hay credenciales en la variable de entorno?
-  const credentialsEnv = process.env.GOOGLE_DRIVE_CREDENTIALS
-    ? JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS)
-    : null;
-
-  // 1b) Si NO hay variable de entorno, lee el archivo local (si existe)
-  let credentialsFile = null;
-  if (!credentialsEnv) {
-    const credPath = path.join(process.cwd(), 'src', 'credentials', 'credentials.json');
-    if (fs.existsSync(credPath)) {
-      const raw = fs.readFileSync(credPath, 'utf8');
-      credentialsFile = JSON.parse(raw);
-    }
+  // 1) Calcula la ruta del credentials.json
+  const credPath = path.join(process.cwd(), 'src', 'credentials', 'credentials.json');
+  
+  // 2) Verifica que exista
+  if (!fs.existsSync(credPath)) {
+    throw new Error(`No existe el archivo credentials.json en: ${credPath}`);
   }
 
-  // 2) Combina: primero variable de entorno, luego archivo local
-  const finalCredentials = credentialsEnv || credentialsFile;
-  if (!finalCredentials) {
-    throw new Error(
-      'No se encontraron credenciales ni en GOOGLE_DRIVE_CREDENTIALS ni en credentials.json'
-    );
-  }
+  // 3) Lee y parsea el JSON
+  const rawJSON = fs.readFileSync(credPath, 'utf8');
+  const finalCredentials = JSON.parse(rawJSON);
 
-  // 3) Construye GoogleAuth
+  // 4) Instancia GoogleAuth
   const auth = new google.auth.GoogleAuth({
     credentials: finalCredentials,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
 
+  // 5) Devuelve el client
   return auth.getClient();
 }
 
-// ---------------------
-// Variables y funciones de caché
-// ---------------------
-let rowIndexMap = {}; // { '521xxx': númeroFila }
-let changesMap = {};  // { '521xxx': [colA, colB, ... colG] }
-let appendList = [];  // filas nuevas (cada una con 7 columnas)
+// ----------------------------------------------------------------
+//  LÓGICA DE CACHÉ: initSheetCache, setStatus, flushSheetUpdates
+// ----------------------------------------------------------------
 
+let rowIndexMap = {}; // { '521xxxx': fila (1-based) }
+let changesMap = {};  // { '521xxxx': [colA, colB, ..., colG] }
+let appendList = [];  // Para filas nuevas (si no existe el tel en la hoja)
+
+/**
+ * Normaliza teléfonos al formato 521XXXXXXXXXX
+ */
 function normalizePhone(phone) {
   let clean = phone.replace(/^\+/, '').trim();
   if (!clean.startsWith('521')) {
@@ -61,7 +56,7 @@ function normalizePhone(phone) {
 
 /**
  * initSheetCache():
- * - Lee "reservas!A:G" y llena el rowIndexMap en memoria.
+ *   - Lee la hoja "reservas!A:G" y llena rowIndexMap
  */
 export async function initSheetCache() {
   console.log('initSheetCache: Leyendo Google Sheets para crear la caché...');
@@ -69,6 +64,7 @@ export async function initSheetCache() {
   const authClient = await getAuthClient();
   const sheets = google.sheets({ version: 'v4', auth: authClient });
 
+  // Leer filas
   const readRes = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: 'reservas!A:G',
@@ -76,11 +72,12 @@ export async function initSheetCache() {
   const rows = readRes.data.values || [];
   console.log(`initSheetCache: Filas leídas = ${rows.length}`);
 
+  // Reinicia cachés
   rowIndexMap = {};
   changesMap = {};
   appendList = [];
 
-  // Suponiendo fila 0 = encabezados
+  // Asume fila 0 = encabezados
   for (let i = 1; i < rows.length; i++) {
     const telRaw = rows[i][0] || '';
     const norm = normalizePhone(telRaw);
@@ -92,13 +89,14 @@ export async function initSheetCache() {
 
 /**
  * setStatus(rowData):
- * rowData = [telefono, nombre, cuenta, saldo, rpt, clave, estado]
- * - Si el teléfono existe, guardamos en changesMap
- * - Si no, en appendList
+ *  rowData = [telefono, nombre, cuenta, saldo, rpt, clave, estado]
+ *  Si el teléfono existe en rowIndexMap => changesMap
+ *  Si no => appendList
  */
 export function setStatus(rowData) {
   const tel = rowData[0];
   const norm = normalizePhone(tel);
+
   if (rowIndexMap[norm]) {
     changesMap[norm] = rowData;
   } else {
@@ -107,7 +105,8 @@ export function setStatus(rowData) {
 }
 
 /**
- * getSheetId: para obtener el sheetId real de "reservas".
+ * getSheetId(sheets, spreadsheetId):
+ *   - Obtiene el sheetId real de la hoja "reservas"
  */
 async function getSheetId(sheets, spreadsheetId) {
   const metadata = await sheets.spreadsheets.get({
@@ -123,11 +122,13 @@ async function getSheetId(sheets, spreadsheetId) {
 
 /**
  * flushSheetUpdates():
- * - Aplica .append() para filas nuevas
- * - Aplica batchUpdate() para actualizar la columna G
+ *  - Inserta filas nuevas con .append()
+ *  - Actualiza columna G (estado) con batchUpdate
  */
 export async function flushSheetUpdates() {
   console.log('flushSheetUpdates: iniciando...');
+
+  // Si no hay nada que agregar / actualizar
   if (Object.keys(changesMap).length === 0 && appendList.length === 0) {
     console.log('flushSheetUpdates: no hay cambios en la caché');
     return;
@@ -136,7 +137,7 @@ export async function flushSheetUpdates() {
   const authClient = await getAuthClient();
   const sheets = google.sheets({ version: 'v4', auth: authClient });
 
-  // A) Insertar nuevas filas
+  // A) Insertar filas nuevas
   if (appendList.length > 0) {
     console.log(`flushSheetUpdates: Insertando ${appendList.length} filas nuevas...`);
     await sheets.spreadsheets.values.append({
@@ -149,7 +150,7 @@ export async function flushSheetUpdates() {
     appendList = [];
   }
 
-  // B) Batch update de la columna G
+  // B) Batch update de columna G
   const sheetId = await getSheetId(sheets, SPREADSHEET_ID);
   const requests = [];
 
@@ -166,11 +167,12 @@ export async function flushSheetUpdates() {
         start: {
           sheetId,
           rowIndex: fila - 1, // 0-based
-          columnIndex: 6      // Col G
+          columnIndex: 6      // Columna G
         }
       }
     });
   }
+
   if (requests.length > 0) {
     console.log(`flushSheetUpdates: batchUpdate de ${requests.length} filas...`);
     await sheets.spreadsheets.batchUpdate({
@@ -184,7 +186,7 @@ export async function flushSheetUpdates() {
   console.log('flushSheetUpdates: completado.');
 }
 
-// Export default si lo necesitas
+// Export default si lo deseas
 export default {
   initSheetCache,
   setStatus,
