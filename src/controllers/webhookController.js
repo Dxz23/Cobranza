@@ -121,40 +121,33 @@ class WebhookController {
    */
   async saveMediaFile(from, mediaId, fileName, tipo) {
     try {
-      // 1) Descarga y guarda el archivo localmente
-      const saved = await downloadAndSaveMedia(mediaId, fileName);
+      // 1) Descarga y guarda localmente en /comprobantes
+      const savedFileName = await downloadAndSaveMedia(mediaId, fileName);
 
-      // 2) Agrega metadata para la "Galería de Comprobantes"
-      addComprobanteMetadata({ phone: from, fileName: saved });
+      // 2) Guarda metadata para la galería
+      addComprobanteMetadata({ phone: from, fileName: savedFileName });
 
-      // 3) Log para el historial
+      // 3) Log de recepción
       addLog({
         timestamp: new Date().toISOString().substr(0, 19).replace('T', ' '),
         phone: from,
-        message: `Comprobante recibido: ${saved}`,
-        type: "notificacion"
+        message: `Comprobante recibido: ${savedFileName}`,
+        type: 'notificacion'
       });
 
-      // 4) REENVIAR AL +52 661 130 9881
-      // Cambia la URL según tu dominio real o tu NGROK en desarrollo
-      const urlPublica = `https://TU_DOMINIO_O_NGROK.com/comprobantes/${saved}`;
+      // 4) URL pública usando tu dominio en Railway
+      const baseUrl = process.env.PUBLIC_BASE_URL || 'https://cobranza-production.up.railway.app';
+      const fileUrl = `${baseUrl}/comprobantes/${savedFileName}`;
       const destinatario = '+526611309881';
 
+      // 5) Reenvío por WhatsApp
       if (tipo === 'image') {
-        await whatsappService.sendImageMessage(
-          destinatario,
-          urlPublica,
-          `Nuevo comprobante de ${from}`
-        );
+        await whatsappService.sendImageMessage(destinatario, fileUrl, `Nuevo comprobante de ${from}`);
       } else if (tipo === 'document') {
-        await whatsappService.sendDocumentMessage(
-          destinatario,
-          urlPublica,
-          `Comprobante_${saved}`
-        );
+        await whatsappService.sendDocumentMessage(destinatario, fileUrl, `Comprobante_${savedFileName}`);
       }
     } catch (err) {
-      logger.error(`Error descargando comprobante de ${tipo}: ${err.message}`);
+      logger.error(`Error guardando/reenviando comprobante: ${err.message}`);
     }
   }
 }
