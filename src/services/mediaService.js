@@ -13,16 +13,15 @@ import config from '../config/env.js'; // Importa la configuración
  */
 export async function downloadAndSaveMedia(mediaId, fileName) {
   try {
-    // URL de descarga de media en WhatsApp Cloud
-    const url = `${config.BASE_URL}/${config.API_VERSION}/${mediaId}?access_token=${config.API_TOKEN}`;
+    // 1) Obtener URL de descarga
+    const metaUrl = `${config.BASE_URL}/${config.API_VERSION}/${mediaId}?access_token=${config.API_TOKEN}`;
+    const { data: { url: mediaUrl } } = await axios.get(metaUrl);
 
-    // Petición GET con responseType "stream" para guardar el archivo
-    const response = await axios.get(url, { responseType: 'stream' });
+    // 2) Descargar el archivo real
+    const response = await axios.get(mediaUrl, { responseType: 'stream' });
 
     const dir = path.join(process.cwd(), 'comprobantes');
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const filePath = path.join(dir, fileName);
 
     const writer = fs.createWriteStream(filePath);
@@ -33,7 +32,7 @@ export async function downloadAndSaveMedia(mediaId, fileName) {
       writer.on('error', reject);
     });
   } catch (error) {
-    console.error("Error descargando el comprobante:", error);
+    logger.error(`Error descargando el comprobante: ${error.message}`);
     throw error;
   }
 }
