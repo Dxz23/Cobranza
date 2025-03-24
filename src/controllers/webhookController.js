@@ -138,7 +138,7 @@ class WebhookController {
       // 4) URL pública usando tu dominio en Railway
       const baseUrl = process.env.PUBLIC_BASE_URL || 'https://cobranza-production.up.railway.app';
       const fileUrl = `${baseUrl}/comprobantes/${savedFileName}`;
-      const destinatario = '+526611309881';
+      const destinatario = '+5216611309881';
 
       // 5) Reenvío por WhatsApp
       if (tipo === 'image') {
