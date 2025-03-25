@@ -1,4 +1,3 @@
-// src/scripts/processExcelAndSendTemplate.js
 import XLSX from 'xlsx';
 import PQueue from 'p-queue';
 import whatsappService from '../services/whatsappService.js';
@@ -30,44 +29,69 @@ function normalizePhoneForReporte(phone) {
   return num;
 }
 
-// Función de reintentos con backoff exponencial robusta
-async function retryOperation(operation, retries = 5, delay = 1500) {
+// Función de reintentos con backoff exponencial robusta, registro detallado y mayor agresividad para errores transitorios
+async function retryOperation(operation, retries = 7, delay = 1500) {
   let lastError;
   for (let i = 0; i < retries; i++) {
     try {
       const result = await operation();
-      // Si el resultado es undefined o null, se considera fallo y se reintenta
       if (result === undefined || result === null) {
         throw new Error("Respuesta vacía");
       }
       return result;
     } catch (error) {
       lastError = error;
+      
+      // Registro detallado del error: se loguea el objeto completo.
+      logger.error(`Error en intento ${i + 1}: `, error);
+      
+      // Si existen cabeceras en la respuesta, loguearlas para monitoreo
+      if (error.response && error.response.headers) {
+        logger.info('Cabeceras de respuesta: ', error.response.headers);
+      }
+      
+      // Ajuste para rate limit (status 429)
       if (error.response && error.response.status === 429) {
-        delay *= 2; // Backoff exponencial en caso de rate limit
+        delay *= 2;
         logger.warn(`Rate limit detectado. Incrementando delay a ${delay}ms.`);
-      } else if (error.message === "Respuesta vacía") {
-        delay *= 1.5; // Incremento moderado en caso de respuesta vacía
+      }
+      // Ajuste para error transitorio: Service temporarily unavailable
+      else if (
+        error.response &&
+        error.response.data &&
+        error.response.data.error &&
+        typeof error.response.data.error.message === 'string' &&
+        error.response.data.error.message.includes("Service temporarily unavailable")
+      ) {
+        delay *= 2; // Backoff más agresivo
+        logger.warn(`Service unavailable detectado. Incrementando delay a ${delay}ms.`);
+      }
+      // Caso de respuesta vacía
+      else if (error.message === "Respuesta vacía") {
+        delay *= 1.5;
         logger.warn(`Respuesta vacía detectada. Incrementando delay a ${delay}ms.`);
       }
-      logger.error(`Error en intento ${i + 1}: ${error.message}. Reintentando en ${delay}ms...`);
+      
       await new Promise((r) => setTimeout(r, delay));
     }
   }
   throw lastError;
 }
 
-// Configuración de la cola de tareas (se reduce la concurrencia a 5)
-const queue = new PQueue({ concurrency: 5, interval: 1000, intervalCap: 5 });
+// Configuración de la cola de tareas: reducción de la concurrencia a 3 para espaciar los envíos
+const queue = new PQueue({ concurrency: 3, interval: 1000, intervalCap: 3 });
 
 async function processRow(row) {
+  // Delay extra entre envíos para espaciar aún más (por ejemplo, 3 segundos extra)
+  const extraDelay = 3000;
+  
   const telefonoOriginal = row.TELEFONO ? row.TELEFONO.toString().trim() : '';
   const telEnvio = telefonoOriginal ? normalizePhoneForSending(telefonoOriginal) : '';
   const telReporte = telefonoOriginal ? normalizePhoneForReporte(telefonoOriginal) : '';
   // La validación exige el formato: +521 seguido de 10 dígitos
   const validPhoneRegex = /^\+521\d{10}$/;
   let estadoEnvio = 'Mensajes enviados';
-
+  
   if (!telefonoOriginal || !validPhoneRegex.test(telEnvio)) {
     estadoEnvio = 'Número inválido';
     if (telefonoOriginal) {
@@ -79,6 +103,10 @@ async function processRow(row) {
       });
     }
   } else {
+    // Variable para controlar si se envió correctamente la plantilla 1
+    let template1Success = false;
+    
+    // Enviar la plantilla 1 (auto_pay_reminder_cobranza_3) como verificación
     try {
       await retryOperation(() =>
         whatsappService.sendTemplateMessage(
@@ -107,26 +135,31 @@ async function processRow(row) {
           ]
         )
       );
+      // Si se envía sin errores, se marca el éxito
+      template1Success = true;
     } catch (err) {
       estadoEnvio = 'Número inválido';
       logger.error(`Error en plantilla 1 para ${telEnvio}: ${err.message}`);
     }
-
-    // Espera de 5 segundos entre envíos de plantillas
-    await new Promise((r) => setTimeout(r, 5000));
-
-    try {
-      await retryOperation(() =>
-        whatsappService.sendTemplateMessage(
-          telEnvio,
-          'domiciliar_cobranza',
-          'es_MX',
-          [{ type: 'body', parameters: [] }]
-        )
-      );
-    } catch (err) {
-      estadoEnvio = 'Número inválido';
-      logger.error(`Error en plantilla 2 para ${telEnvio}: ${err.message}`);
+    
+    // Solo si la plantilla 1 se envió correctamente, se procede a enviar la plantilla 2
+    if (template1Success) {
+      // Espera de 5 segundos entre envíos de plantillas + delay extra
+      await new Promise((r) => setTimeout(r, 5000 + extraDelay));
+      
+      try {
+        await retryOperation(() =>
+          whatsappService.sendTemplateMessage(
+            telEnvio,
+            'domiciliar_cobranza',
+            'es_MX',
+            [{ type: 'body', parameters: [] }]
+          )
+        );
+      } catch (err) {
+        estadoEnvio = 'Número inválido';
+        logger.error(`Error en plantilla 2 para ${telEnvio}: ${err.message}`);
+      }
     }
   }
 
@@ -160,13 +193,13 @@ async function processExcelAndSendTemplate(filePath) {
     stats.enviados = results.filter(r => r[6] === 'Mensajes enviados').length;
     stats.invalidos = stats.total - stats.enviados;
 
-    // Aquí actualizamos cada registro con el estado final del webhook
+    // Actualiza cada registro con el estado final informado por el webhook
     for (const record of results) {
       if (!record || !record[0]) continue;
       // record[0] es el teléfono sin el '+'
       const key = record[0];
       const finalStatus = getFinalStatusForPhone(key);
-      // Si el webhook reportó 'failed', marcamos como "Número inválido"
+      // Si el webhook reportó 'failed', se marca como "Número inválido"
       if (finalStatus === 'failed') {
         record[6] = 'Número inválido';
       } else if (
