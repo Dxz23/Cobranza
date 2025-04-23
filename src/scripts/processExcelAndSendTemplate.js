@@ -111,7 +111,7 @@ async function processRow(row) {
       await retryOperation(() =>
         whatsappService.sendTemplateMessage(
           telEnvio,
-          'auto_pay_reminder_cobranza_4',
+          'auto_pay_reminder_cobranza_5',
           'es_MX',
           [
             {
