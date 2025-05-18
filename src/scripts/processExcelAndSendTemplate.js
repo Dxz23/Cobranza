@@ -82,16 +82,17 @@ async function retryOperation(operation, retries = 7, delay = 1500) {
 const queue = new PQueue({ concurrency: 3, interval: 1000, intervalCap: 3 });
 
 async function processRow(row) {
-  // Delay extra entre envíos para espaciar aún más (por ejemplo, 3 segundos extra)
   const extraDelay = 3000;
-  
+
   const telefonoOriginal = row.TELEFONO ? row.TELEFONO.toString().trim() : '';
   const telEnvio = telefonoOriginal ? normalizePhoneForSending(telefonoOriginal) : '';
   const telReporte = telefonoOriginal ? normalizePhoneForReporte(telefonoOriginal) : '';
-  // La validación exige el formato: +521 seguido de 10 dígitos
   const validPhoneRegex = /^\+521\d{10}$/;
   let estadoEnvio = 'Mensajes enviados';
-  
+
+  let template1Success = false;
+  let template2Success = false;
+
   if (!telefonoOriginal || !validPhoneRegex.test(telEnvio)) {
     estadoEnvio = 'Número inválido';
     if (telefonoOriginal) {
@@ -103,10 +104,7 @@ async function processRow(row) {
       });
     }
   } else {
-    // Variable para controlar si se envió correctamente la plantilla 1
-    let template1Success = false;
-    
-    // Enviar la plantilla 1 (auto_pay_reminder_cobranza_3) como verificación
+    // PLANTILLA 1
     try {
       await retryOperation(() =>
         whatsappService.sendTemplateMessage(
@@ -135,18 +133,15 @@ async function processRow(row) {
           ]
         )
       );
-      // Si se envía sin errores, se marca el éxito
       template1Success = true;
     } catch (err) {
       estadoEnvio = 'Número inválido';
       logger.error(`Error en plantilla 1 para ${telEnvio}: ${err.message}`);
     }
-    
-    // Solo si la plantilla 1 se envió correctamente, se procede a enviar la plantilla 2
+
+    // PLANTILLA 2
     if (template1Success) {
-      // Espera de 5 segundos entre envíos de plantillas + delay extra
       await new Promise((r) => setTimeout(r, 5000 + extraDelay));
-      
       try {
         await retryOperation(() =>
           whatsappService.sendTemplateMessage(
@@ -156,14 +151,31 @@ async function processRow(row) {
             [{ type: 'body', parameters: [] }]
           )
         );
+        template2Success = true;
       } catch (err) {
         estadoEnvio = 'Número inválido';
         logger.error(`Error en plantilla 2 para ${telEnvio}: ${err.message}`);
       }
     }
+
+    // IMAGEN DESPUÉS DE AMBAS PLANTILLAS
+    if (template1Success && template2Success) {
+      try {
+        await new Promise((r) => setTimeout(r, 2000)); // delay opcional
+        await retryOperation(() =>
+          whatsappService.sendImageMessage(
+            telEnvio,
+            'https://raw.githubusercontent.com/Dxz23/imagenes-publicas/6914c423da47934b322c1b457bbdcad74c263e97/whatsappimagen.jpeg',
+            '¡Gracias por su atención! Este es un mensaje ilustrativo.'
+          )
+        );
+        logger.info(`Imagen enviada correctamente a ${telEnvio}`);
+      } catch (err) {
+        logger.error(`Error al enviar la imagen a ${telEnvio}: ${err.message}`);
+      }
+    }
   }
 
-  // Construir el registro para Google Sheets (7 columnas)
   const registro = [
     telReporte,
     row.NOMBRE_CLIENTE || '',
@@ -176,6 +188,7 @@ async function processRow(row) {
 
   return registro;
 }
+
 
 async function processExcelAndSendTemplate(filePath) {
   try {
