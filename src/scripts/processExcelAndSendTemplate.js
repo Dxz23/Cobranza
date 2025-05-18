@@ -165,7 +165,7 @@ async function processRow(row) {
         await retryOperation(() =>
           whatsappService.sendImageMessage(
             telEnvio,
-            'https://imgur.com/a/KOHRYjL',
+            'https://i.imgur.com/1CWiZc3.jpeg',
             '¡Gracias por su atención! Este es un mensaje ilustrativo.'
           )
         );
