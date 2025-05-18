@@ -43,31 +43,37 @@ class WhatsAppService {
    * @param {string} imageUrl - URL pública de la imagen
    * @param {string} caption - Texto opcional que acompañará la imagen
    */
-  async sendImageMessage(to, imageUrl, caption = '') {
-    const data = {
-      messaging_product: 'whatsapp',
-      to,
-      type: 'image',
-      image: {
-        link: imageUrl,
-        caption
-      }
-    };
-
-    const url = `${config.BASE_URL}/${config.API_VERSION}/${config.BUSINESS_PHONE}/messages`;
-    const headers = {
-      Authorization: `Bearer ${config.API_TOKEN}`,
-      'Content-Type': 'application/json'
-    };
-
-    try {
-      const response = await axios.post(url, data, { headers, timeout: 15000 });
-      return response.data;
-    } catch (error) {
-      console.error('Error al enviar imagen:', error?.response?.data || error);
-      throw error;
+async sendImageMessage(to, imageUrl, caption = '') {
+  const data = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'image',
+    image: {
+      link: imageUrl,
+      caption
     }
+  };
+
+  const url = `${config.BASE_URL}/${config.API_VERSION}/${config.BUSINESS_PHONE}/messages`;
+  const headers = {
+    Authorization: `Bearer ${config.API_TOKEN}`,
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    const response = await axios.post(url, data, { headers, timeout: 15000 });
+    console.log("RESPUESTA DE WHATSAPP AL ENVIAR IMAGEN:", response.data); // <-- AGREGA ESTA LÍNEA
+    return response.data;
+  } catch (error) {
+    // Imprime error completo, incluso si es por response.data
+    if (error.response && error.response.data) {
+      console.error('Error al enviar imagen (response.data):', error.response.data);
+    } else {
+      console.error('Error al enviar imagen:', error);
+    }
+    throw error;
   }
+}
 
   /**
    * Envía un documento (PDF, etc.) a un número de WhatsApp.
