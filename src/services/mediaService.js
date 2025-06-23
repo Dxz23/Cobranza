@@ -2,25 +2,15 @@ import axios from 'axios';
 import config from '../config/env.js';
 import logger from '../logger.js';
 
-//
-// Aquí asumimos que en tu config.env.js tienes:
-//   BASE_URL=https://graph.facebook.com
-//   API_VERSION=v22.0
-//   API_TOKEN=<tu bearer token>
-//   BUSINESS_PHONE=<tu Phone-Number-ID de la Cloud API>
-//
-
-const PHONE_NUMBER_ID    = config.BUSINESS_PHONE;    // el ID de tu teléfono en WhatsApp Cloud API
-const DESTINATION_NUMBER = '5216611309881';         // el número al que reenviar (sin '+')
+const PHONE_NUMBER_ID    = config.BUSINESS_PHONE;    // tu Phone-Number-ID
+const DESTINATION_NUMBER = '5216611309881';         // sin '+'
 
 /**
- * En lugar de descargar y subir a Drive, volvemos a enviar la imagen
- * referenciando directamente el mediaId que recibiste en el webhook.
+ * Reenvía la imagen referenciando directamente el mediaId.
  */
-export async function downloadAndSaveMedia(mediaId /*, fileName ya no se usa */) {
+export async function downloadAndSaveMedia(mediaId /* ya no necesitas fileName */) {
   logger.info(`🔍 Reenviando mediaId=${mediaId}`);
 
-  // Construye el payload usando image.id
   const payload = {
     messaging_product: 'whatsapp',
     to: DESTINATION_NUMBER,
