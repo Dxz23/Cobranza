@@ -137,7 +137,7 @@ class WebhookController {
       });
 
       // 4) URL pública usando tu dominio en Railway
-+ /* fileUrl ya lo tienes de la línea 1 */
+      /* fileUrl ya lo tienes de la línea 1 */
 
       // 5) Reenvío por WhatsApp
       if (tipo === 'image') {
