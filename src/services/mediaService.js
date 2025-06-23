@@ -1,41 +1,65 @@
 // src/services/mediaService.js
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
-import config from '../config/env.js'; // Importa la configuración
+import { google } from 'googleapis';
+import config from '../config/env.js';
 import logger from '../logger.js';
+import { getAuthClient } from './sheetCacheService.js';   // ya existe en tu proyecto
+
+/* ID de la carpeta "Comprobantes" en Drive */
+const DRIVE_FOLDER_ID = '11tO6Beqr7yb51aKv7f8myGj4JgJ6HyjM';
 
 /**
- * Descarga el archivo (imagen o documento) desde la API de WhatsApp
- * y lo guarda localmente en la carpeta "comprobantes".
+ * Descarga el media de WhatsApp y lo sube a Drive.
+ * Devuelve la URL pública (webContentLink) para reenviar por WhatsApp.
  *
- * @param {string} mediaId - El ID devuelto por WhatsApp Cloud
- * @param {string} fileName - Nombre con el que lo guardaremos localmente
+ * @param {string} mediaId   ID del archivo en WhatsApp Cloud
+ * @param {string} fileName  Nombre que tendrá en Drive
  */
 export async function downloadAndSaveMedia(mediaId, fileName) {
   try {
-    // 1) Obtener URL de descarga
+    /* 1) Obtener la URL temporal de descarga en WhatsApp */
     const metaUrl = `${config.BASE_URL}/${config.API_VERSION}/${mediaId}`;
     const { data: { url: mediaUrl } } = await axios.get(metaUrl, {
       headers: { Authorization: `Bearer ${config.API_TOKEN}` }
     });
 
-    // 2) Descargar el archivo real
+    /* 2) Descargar el stream del archivo */
     const response = await axios.get(mediaUrl, { responseType: 'stream' });
 
-    const dir = path.join(process.cwd(), 'comprobantes');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const filePath = path.join(dir, fileName);
+    /* 3) Subir el stream a Google Drive */
+    const authClient = await getAuthClient();                       // reutiliza tu cliente Google
+    const drive      = google.drive({ version: 'v3', auth: authClient });
 
-    const writer = fs.createWriteStream(filePath);
-    response.data.pipe(writer);
+    const mimeType = fileName.endsWith('.pdf')
+      ? 'application/pdf'
+      : 'image/jpeg';
 
-    return new Promise((resolve, reject) => {
-      writer.on('finish', () => resolve(fileName));
-      writer.on('error', reject);
+    // Crea el archivo en la carpeta Comprobantes
+    const { data: { id: fileId } } = await drive.files.create({
+      requestBody: {
+        name: fileName,
+        parents: [DRIVE_FOLDER_ID],
+        mimeType
+      },
+      media: { mimeType, body: response.data }
     });
+
+    // Hazlo público para poder compartirlo
+    await drive.permissions.create({
+      fileId,
+      requestBody: { role: 'reader', type: 'anyone' }
+    });
+
+    // Obtén el enlace directo
+    const { data: { webContentLink } } = await drive.files.get({
+      fileId,
+      fields: 'webContentLink'
+    });
+
+    logger.info(`Comprobante subido a Drive: ${webContentLink}`);
+    return webContentLink;                   // ← se devuelve la URL pública
   } catch (error) {
-    logger.error(`Error descargando el comprobante: ${error.message}`);
+    logger.error(`Error descargando/subiendo el comprobante: ${error.message}`);
     throw error;
   }
 }
