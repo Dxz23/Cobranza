@@ -8,6 +8,13 @@ import config from './config/env.js';
 import { stats } from './stats.js';
 import logger from './logger.js';
 
+
+// ———————————————————————————————————————————————————————————————
+// DEBUG: muestra los primeros 10 caracteres de API_TOKEN
+logger.info('🚀 API_TOKEN en Railway (primeros 10 chars): ' + (config.API_TOKEN || '').slice(0, 10));
+// ———————————————————————————————————————————————————————————————
+
+
 // Rutas (las tuyas)
 import uploadRoutes from './routes/uploadRoutes.js';
 import loginRoutes from './routes/loginRoutes.js';
