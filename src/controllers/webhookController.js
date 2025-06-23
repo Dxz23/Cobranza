@@ -123,23 +123,21 @@ class WebhookController {
   async saveMediaFile(from, mediaId, fileName, tipo) {
     try {
       // 1) Descarga y guarda localmente en /comprobantes
-      const savedFileName = await downloadAndSaveMedia(mediaId, fileName);
+      const fileUrl = await downloadAndSaveMedia(mediaId, fileName);
 
       // 2) Guarda metadata para la galería
-      addComprobanteMetadata({ phone: from, fileName: savedFileName });
+      addComprobanteMetadata({ phone: from, fileUrl });
 
       // 3) Log de recepción
       addLog({
         timestamp: new Date().toISOString().substr(0, 19).replace('T', ' '),
         phone: from,
-        message: `Comprobante recibido: ${savedFileName}`,
+        message: `Comprobante recibido y subido a Drive`,
         type: 'notificacion'
       });
 
       // 4) URL pública usando tu dominio en Railway
-      const baseUrl = process.env.PUBLIC_BASE_URL || 'https://cobranza-production.up.railway.app';
-      const fileUrl = `${baseUrl}/comprobantes/${savedFileName}`;
-      const destinatario = '+5216611309881';
++ /* fileUrl ya lo tienes de la línea 1 */
 
       // 5) Reenvío por WhatsApp
       if (tipo === 'image') {
