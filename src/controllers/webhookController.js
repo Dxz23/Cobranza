@@ -58,26 +58,27 @@ class WebhookController {
           const messages = change.value?.messages || [];
           for (const message of messages) {
             if (message.type === 'image' || message.type === 'document') {
-              let from = message.from; // Quien envió
+              const from = message.from; // Quien envió
               const normalizedPhone = normalizePhoneKey(from);
 
               // El ID de media y la extensión
               const mediaId = message[message.type]?.id;
               logger.info(`-- mediaId recibido: ${mediaId}`);
-              const extension = (message.type === 'image') ? '.jpg' : '.pdf';
+              const extension = message.type === 'image' ? '.jpg' : '.pdf';
               // Creamos un nombre único
               const fileName = `${Date.now()}-${normalizedPhone}${extension}`;
 
-              // Guardamos la media local y la registramos en la galería
+              // Guardamos en Drive y reenviamos
               await this.saveMediaFile(normalizedPhone, mediaId, fileName, message.type);
             }
           }
 
           // 2) Los "statuses" (entregado, fallido, etc.)
           if (change.value.statuses) {
-            const statuses = change.value.statuses;
-            for (const status of statuses) {
-              let phone = status.recipient_id || status.from;
+            for (const status of change.value.statuses) {
+              const phone = typeof status.recipient_id === 'string'
+                ? status.recipient_id
+                : status.from;
               if (typeof phone !== 'string') continue;
               const normalizedPhone = normalizePhoneKey(phone);
 
@@ -87,8 +88,8 @@ class WebhookController {
                 addLog({
                   timestamp: new Date().toISOString().substr(0, 19).replace('T', ' '),
                   phone: normalizedPhone,
-                  message: "webhook => failed",
-                  type: "error"
+                  message: 'webhook => failed',
+                  type: 'error'
                 });
               } else if (status.status === 'sent') {
                 setFinalStatusForPhone(normalizedPhone, 'sent');
@@ -96,8 +97,8 @@ class WebhookController {
                 addLog({
                   timestamp: new Date().toISOString().substr(0, 19).replace('T', ' '),
                   phone: normalizedPhone,
-                  message: "webhook => sent",
-                  type: "exito"
+                  message: 'webhook => sent',
+                  type: 'exito'
                 });
               } else if (status.status === 'delivered' || status.status === 'read') {
                 setFinalStatusForPhone(normalizedPhone, 'delivered');
@@ -105,8 +106,8 @@ class WebhookController {
                 addLog({
                   timestamp: new Date().toISOString().substr(0, 19).replace('T', ' '),
                   phone: normalizedPhone,
-                  message: "webhook => delivered",
-                  type: "exito"
+                  message: 'webhook => delivered',
+                  type: 'exito'
                 });
               }
             }
@@ -117,46 +118,47 @@ class WebhookController {
     res.sendStatus(200);
   }
 
-/**
- * Guarda el comprobante en Drive y lo reenvía por WhatsApp
- */
-async saveMediaFile(from, mediaId, fileName, tipo) {
-  try {
-    // 1) Descarga la media de WhatsApp y la sube a Google Drive → devuelve la URL pública
-    const fileUrl = await downloadAndSaveMedia(mediaId, fileName);
+  /**
+   * Guarda el comprobante en Drive y lo reenvía por WhatsApp
+   */
+  async saveMediaFile(from, mediaId, fileName, tipo) {
+    try {
+      // 1) Descarga la media de WhatsApp y la sube a Google Drive → devuelve la URL pública
+      const fileUrl = await downloadAndSaveMedia(mediaId, fileName);
 
-    // 2) Registra la metadata en memoria (teléfono + enlace público)
-    addComprobanteMetadata({ phone: from, fileUrl });
+      // 2) Registra la metadata en memoria (teléfono + enlace público)
+      addComprobanteMetadata({ phone: from, fileUrl });
 
-    // 3) Log interno
-    addLog({
-      timestamp: new Date().toISOString().substr(0, 19).replace('T', ' '),
-      phone: from,
-      message: 'Comprobante recibido y subido a Drive',
-      type: 'notificacion'
-    });
+      // 3) Log interno
+      addLog({
+        timestamp: new Date().toISOString().substr(0, 19).replace('T', ' '),
+        phone: from,
+        message: 'Comprobante recibido y subido a Drive',
+        type: 'notificacion'
+      });
 
-    // 4) Número que recibe la copia del comprobante
-    const destinatario = '+5216611309881';
+      // 4) Número que recibe la copia del comprobante
+      const destinatario = '+5216611309881';
 
-    // 5) Reenvío del enlace por WhatsApp
-    if (tipo === 'image') {
-      await whatsappService.sendImageMessage(
-        destinatario,
-        fileUrl,
-        `Nuevo comprobante de ${from}`
-      );
-    } else if (tipo === 'document') {
-      await whatsappService.sendDocumentMessage(
-        destinatario,
-        fileUrl,
-        `Comprobante_${fileName}`
-      );
+      // 5) Reenvío del enlace por WhatsApp
+      if (tipo === 'image') {
+        await whatsappService.sendImageMessage(
+          destinatario,
+          fileUrl,
+          `Nuevo comprobante de ${from}`
+        );
+      } else if (tipo === 'document') {
+        await whatsappService.sendDocumentMessage(
+          destinatario,
+          fileUrl,
+          `Comprobante_${fileName}`
+        );
+      }
+    } catch (err) {
+      logger.error(`Error guardando/reenviando comprobante: ${err.message}`);
     }
-  } catch (err) {
-    logger.error(`Error guardando/reenviando comprobante: ${err.message}`);
   }
-}
+} // ← CIERRA la clase WebhookController
 
 export default new WebhookController();
 export { setFinalStatusForPhone };
