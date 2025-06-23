@@ -16,7 +16,9 @@ export async function downloadAndSaveMedia(mediaId, fileName) {
   try {
     // 1) Obtener URL de descarga
     const metaUrl = `${config.BASE_URL}/${config.API_VERSION}/${mediaId}?access_token=${config.API_TOKEN}`;
-    const { data: { url: mediaUrl } } = await axios.get(metaUrl);
+    const { data: { url: mediaUrl } } = await axios.get(metaUrl, {
+      headers: { Authorization: `Bearer ${config.API_TOKEN}` }
+    });
 
     // 2) Descargar el archivo real
     const response = await axios.get(mediaUrl, { responseType: 'stream' });
