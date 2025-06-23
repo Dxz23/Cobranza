@@ -117,37 +117,44 @@ class WebhookController {
     res.sendStatus(200);
   }
 
-  /**
-   * Método para guardar el archivo recibido y reenviarlo a otro número.
-   */
-  async saveMediaFile(from, mediaId, fileName, tipo) {
-    try {
-      // 1) Descarga y guarda localmente en /comprobantes
-      const fileUrl = await downloadAndSaveMedia(mediaId, fileName);
+/**
+ * Guarda el comprobante en Drive y lo reenvía por WhatsApp
+ */
+async saveMediaFile(from, mediaId, fileName, tipo) {
+  try {
+    // 1) Descarga la media de WhatsApp y la sube a Google Drive → devuelve la URL pública
+    const fileUrl = await downloadAndSaveMedia(mediaId, fileName);
 
-      // 2) Guarda metadata para la galería
-      addComprobanteMetadata({ phone: from, fileUrl });
+    // 2) Registra la metadata en memoria (teléfono + enlace público)
+    addComprobanteMetadata({ phone: from, fileUrl });
 
-      // 3) Log de recepción
-      addLog({
-        timestamp: new Date().toISOString().substr(0, 19).replace('T', ' '),
-        phone: from,
-        message: `Comprobante recibido y subido a Drive`,
-        type: 'notificacion'
-      });
+    // 3) Log interno
+    addLog({
+      timestamp: new Date().toISOString().substr(0, 19).replace('T', ' '),
+      phone: from,
+      message: 'Comprobante recibido y subido a Drive',
+      type: 'notificacion'
+    });
 
-      // 4) URL pública usando tu dominio en Railway
-      /* fileUrl ya lo tienes de la línea 1 */
+    // 4) Número que recibe la copia del comprobante
+    const destinatario = '+5216611309881';
 
-      // 5) Reenvío por WhatsApp
-      if (tipo === 'image') {
-        await whatsappService.sendImageMessage(destinatario, fileUrl, `Nuevo comprobante de ${from}`);
-      } else if (tipo === 'document') {
-        await whatsappService.sendDocumentMessage(destinatario, fileUrl, `Comprobante_${savedFileName}`);
-      }
-    } catch (err) {
-      logger.error(`Error guardando/reenviando comprobante: ${err.message}`);
+    // 5) Reenvío del enlace por WhatsApp
+    if (tipo === 'image') {
+      await whatsappService.sendImageMessage(
+        destinatario,
+        fileUrl,
+        `Nuevo comprobante de ${from}`
+      );
+    } else if (tipo === 'document') {
+      await whatsappService.sendDocumentMessage(
+        destinatario,
+        fileUrl,
+        `Comprobante_${fileName}`
+      );
     }
+  } catch (err) {
+    logger.error(`Error guardando/reenviando comprobante: ${err.message}`);
   }
 }
 
