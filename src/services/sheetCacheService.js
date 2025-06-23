@@ -39,7 +39,10 @@ export async function getAuthClient() {
 
   const auth = new google.auth.GoogleAuth({
     credentials: finalCredentials,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    scopes: [
+      'https://www.googleapis.com/auth/spreadsheets'
+      'https://www.googleapis.com/auth/drive'
+    ],
   });
 
   return auth.getClient();
