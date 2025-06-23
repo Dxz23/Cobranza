@@ -63,6 +63,7 @@ class WebhookController {
 
               // El ID de media y la extensión
               const mediaId = message[message.type]?.id;
+              logger.info(`-- mediaId recibido: ${mediaId}`);
               const extension = (message.type === 'image') ? '.jpg' : '.pdf';
               // Creamos un nombre único
               const fileName = `${Date.now()}-${normalizedPhone}${extension}`;
