@@ -15,7 +15,7 @@ import logger from '../logger.js';
 export async function downloadAndSaveMedia(mediaId, fileName) {
   try {
     // 1) Obtener URL de descarga
-    const metaUrl = `${config.BASE_URL}/${config.API_VERSION}/${mediaId}?access_token=${config.API_TOKEN}`;
+    const metaUrl = `${config.BASE_URL}/${config.API_VERSION}/${mediaId}`;
     const { data: { url: mediaUrl } } = await axios.get(metaUrl, {
       headers: { Authorization: `Bearer ${config.API_TOKEN}` }
     });
