@@ -4,7 +4,7 @@ import config from '../config/env.js';
 import logger from '../logger.js';
 
 const PHONE_NUMBER_ID    = config.BUSINESS_PHONE;    // <-- Tu Phone-Number-ID (no el E.164)
-const DESTINATION_NUMBER = '5216611309881';         // <-- Sin el “+”
+const DESTINATION_NUMBER = '526611309881';         // <-- Sin el “+”
 
 export async function downloadAndSaveMedia(mediaId /* ya no usamos fileName */) {
   logger.info(`🔍 Reenviando imagen con mediaId=${mediaId}`);
