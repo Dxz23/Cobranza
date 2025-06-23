@@ -1,4 +1,3 @@
-// src/services/mediaService.js
 import axios from 'axios';
 import { google } from 'googleapis';
 import config from '../config/env.js';
@@ -16,6 +15,12 @@ const DRIVE_FOLDER_ID = '11tO6Beqr7yb51aKv7f8myGj4JgJ6HyjM';
  * @param {string} fileName  Nombre que tendrá en Drive
  */
 export async function downloadAndSaveMedia(mediaId, fileName) {
+  // ————— DEBUG —————
+  logger.info(`🔍 downloadAndSaveMedia() llamado con mediaId=${mediaId}, fileName=${fileName}`);
+  logger.info(`🔍 metaUrl a solicitar: ${config.BASE_URL}/${config.API_VERSION}/${mediaId}`);
+  logger.info(`🔍 Usando token (10 chars): ${config.API_TOKEN.slice(0, 10)}`);
+  // ————————————
+
   try {
     /* 1) Obtener la URL temporal de descarga en WhatsApp */
     const metaUrl = `${config.BASE_URL}/${config.API_VERSION}/${mediaId}`;
