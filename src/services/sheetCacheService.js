@@ -37,13 +37,13 @@ export async function getAuthClient() {
     console.log("Usando credenciales desde el archivo local");
   }
 
-  const auth = new google.auth.GoogleAuth({
-    credentials: finalCredentials,
-    scopes: [
-      'https://www.googleapis.com/auth/spreadsheets'
-      'https://www.googleapis.com/auth/drive'
-    ],
-  });
+const auth = new google.auth.GoogleAuth({
+  credentials: finalCredentials,
+  scopes: [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive'     // ← sin punto y coma aquí
+  ]
+});
 
   return auth.getClient();
 }
