@@ -3,6 +3,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import config from '../config/env.js'; // Importa la configuración
+import logger from '../logger.js';
 
 /**
  * Descarga el archivo (imagen o documento) desde la API de WhatsApp
