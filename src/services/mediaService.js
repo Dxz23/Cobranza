@@ -1,52 +1,43 @@
 import axios from 'axios';
-import { google } from 'googleapis';
 import config from '../config/env.js';
 import logger from '../logger.js';
-import { getAuthClient } from './sheetCacheService.js';
 
-const DRIVE_FOLDER_ID = '11tO6Beqr7yb51aKv7f8myGj4JgJ6HyjM';
+const PHONE_NUMBER_ID = 'TU_PHONE_NUMBER_ID';  // ← reemplaza aquí con el ID de tu número de WhatsApp Cloud API
 
-export async function downloadAndSaveMedia(mediaId, fileName) {
-  // debug logs
-  logger.info(`🔍 downloadAndSaveMedia() called with mediaId=${mediaId}, fileName=${fileName}`);
-  logger.info(`🔍 Requesting metaUrl: ${config.BASE_URL}/${config.API_VERSION}/${mediaId}`);
-  logger.info(`🔍 Using token (10 chars): ${config.API_TOKEN.slice(0,10)}`);
+/**
+ * En lugar de descargar + subir a Drive, pide la URL del media object
+ * y lo reenvía como mensaje de tipo "image" al número fijo.
+ */
+export async function downloadAndSaveMedia(mediaId/*, fileName no se usa aquí */) {
+  logger.info(`🔍 downloadAndSaveMedia() called with mediaId=${mediaId}`);
 
   try {
-    const metaUrl = `${config.BASE_URL}/${config.API_VERSION}/${mediaId}`;
+    // 1) Obtén la URL pública del media object
+    const metaUrl = `${config.BASE_URL}/${config.API_VERSION}/${mediaId}?fields=url`;
     const { data: { url: mediaUrl } } = await axios.get(metaUrl, {
       headers: { Authorization: `Bearer ${config.API_TOKEN}` }
     });
+    logger.info(`🔍 mediaUrl obtenida: ${mediaUrl}`);
 
-    const response = await axios.get(mediaUrl, { responseType: 'stream' });
+    // 2) Reenvía esa URL como mensaje de imagen
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: '+5216611309881',
+      type: 'image',
+      image: { link: mediaUrl }
+    };
 
-    const authClient = await getAuthClient();
-    const drive      = google.drive({ version: 'v3', auth: authClient });
-    const mimeType   = fileName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg';
-
-    const { data: { id: fileId } } = await drive.files.create({
-      requestBody: { name: fileName, parents: [DRIVE_FOLDER_ID], mimeType },
-      media: { mimeType, body: response.data }
+    const endpoint = `${config.BASE_URL}/${config.API_VERSION}/${PHONE_NUMBER_ID}/messages`;
+    const { data: sendResult } = await axios.post(endpoint, payload, {
+      headers: { Authorization: `Bearer ${config.API_TOKEN}` }
     });
 
-    await drive.permissions.create({
-      fileId,
-      requestBody: { role: 'reader', type: 'anyone' }
-    });
-
-    const { data: { webContentLink } } = await drive.files.get({
-      fileId,
-      fields: 'webContentLink'
-    });
-
-    logger.info(`✅ Comprobante subido a Drive: ${webContentLink}`);
-    return webContentLink;
-
+    logger.info('✅ Imagen reenviada con éxito:', sendResult);
+    return sendResult;  // o lo que necesites devolver
   } catch (error) {
-    // error logging ampliado
-    logger.error(`❌ Error descargando/subiendo mediaId=${mediaId}: ${error.message}`);
-    if (error.response && error.response.data) {
-      logger.error(`❌ FB Error response data: ${JSON.stringify(error.response.data)}`);
+    logger.error(`❌ Error reenviando mediaId=${mediaId}: ${error.message}`);
+    if (error.response?.data) {
+      logger.error(`❌ Detalle de la respuesta: ${JSON.stringify(error.response.data)}`);
     }
     throw error;
   }
