@@ -1,12 +1,13 @@
+// src/services/mediaservice.js
 import axios from 'axios';
 import config from '../config/env.js';
 import logger from '../logger.js';
 
 const PHONE_NUMBER_ID    = config.BUSINESS_PHONE;    // tu Phone-Number-ID de la Cloud API
-const DESTINATION_NUMBER = '5216611309881';         // SIN el '+'
+const DESTINATION_NUMBER = '5216611309881';         // sin el “+”
 
 /**
- * Reenvía la imagen referenciando directamente el mediaId recibido en el webhook.
+ * Reenvía la imagen referenciando directamente el mediaId que recibiste en el webhook.
  */
 export async function downloadAndSaveMedia(mediaId /* ya no usamos fileName */) {
   logger.info(`🔍 Reenviando imagen con mediaId=${mediaId}`);
@@ -29,6 +30,7 @@ export async function downloadAndSaveMedia(mediaId /* ya no usamos fileName */) 
     logger.info('✅ Imagen reenviada con éxito:', data);
     return data;
   } catch (error) {
+    // Si vuelve a pedir link, es que tu handler aún está llamando al código antiguo.
     logger.error(`❌ Error reenviando mediaId=${mediaId}:`,
                  error.response?.data || error.message);
     throw error;
