@@ -3,12 +3,9 @@ import axios from 'axios';
 import config from '../config/env.js';
 import logger from '../logger.js';
 
-const PHONE_NUMBER_ID    = config.BUSINESS_PHONE;    // tu Phone-Number-ID de la Cloud API
-const DESTINATION_NUMBER = '5216611309881';         // sin el “+”
+const PHONE_NUMBER_ID    = config.BUSINESS_PHONE;    // <-- Tu Phone-Number-ID (no el E.164)
+const DESTINATION_NUMBER = '5216611309881';         // <-- Sin el “+”
 
-/**
- * Reenvía la imagen referenciando directamente el mediaId que recibiste en el webhook.
- */
 export async function downloadAndSaveMedia(mediaId /* ya no usamos fileName */) {
   logger.info(`🔍 Reenviando imagen con mediaId=${mediaId}`);
 
@@ -17,9 +14,10 @@ export async function downloadAndSaveMedia(mediaId /* ya no usamos fileName */) 
     messaging_product: 'whatsapp',
     to: DESTINATION_NUMBER,
     type: 'image',
-    image: { id: mediaId }
+    image: { id: mediaId }              // <-- aquí va **id**, **no** link
   };
 
+  logger.debug('Payload completo:', JSON.stringify(payload));
   try {
     const { data } = await axios.post(endpoint, payload, {
       headers: {
@@ -29,10 +27,9 @@ export async function downloadAndSaveMedia(mediaId /* ya no usamos fileName */) 
     });
     logger.info('✅ Imagen reenviada con éxito:', data);
     return data;
-  } catch (error) {
-    // Si vuelve a pedir link, es que tu handler aún está llamando al código antiguo.
+  } catch (err) {
     logger.error(`❌ Error reenviando mediaId=${mediaId}:`,
-                 error.response?.data || error.message);
-    throw error;
+                 err.response?.data || err.message);
+    throw err;
   }
 }
