@@ -3,21 +3,34 @@ import axios from 'axios';
 import config from '../config/env.js';
 import logger from '../logger.js';
 
-const PHONE_NUMBER_ID    = config.BUSINESS_PHONE;    // <-- Tu Phone-Number-ID (no el E.164)
-const DESTINATION_NUMBER = '526611309881';         // <-- Sin el “+”
+const PHONE_NUMBER_ID    = config.BUSINESS_PHONE;    // Tu Phone-Number-ID
+const DESTINATION_NUMBER = '526611309881';          // Sin el “+”
 
-export async function downloadAndSaveMedia(mediaId /* ya no usamos fileName */) {
-  logger.info(`🔍 Reenviando imagen con mediaId=${mediaId}`);
+/**
+ * Reenvía medias de WhatsApp (imagen o documento) a un destino fijo.
+ *
+ * @param {string} mediaId  El ID que recibiste en el webhook
+ * @param {'image'|'document'} mediaType  El tipo de media
+ * @param {string} [filename]  (Opcional) sólo para documentos
+ */
+export async function forwardMedia(mediaId, mediaType = 'image', filename) {
+  logger.info(`🔍 Reenviando ${mediaType} con mediaId=${mediaId}`);
 
-  const endpoint = `${config.BASE_URL}/${config.API_VERSION}/${PHONE_NUMBER_ID}/messages`;
   const payload = {
     messaging_product: 'whatsapp',
     to: DESTINATION_NUMBER,
-    type: 'image',
-    image: { id: mediaId }              // <-- aquí va **id**, **no** link
+    type: mediaType,
+    [mediaType]: {
+      id: mediaId,
+      ...(mediaType === 'document' && filename
+        ? { filename }
+        : {}),
+    }
   };
 
+  const endpoint = `${config.BASE_URL}/${config.API_VERSION}/${PHONE_NUMBER_ID}/messages`;
   logger.debug('Payload completo:', JSON.stringify(payload));
+
   try {
     const { data } = await axios.post(endpoint, payload, {
       headers: {
@@ -25,10 +38,10 @@ export async function downloadAndSaveMedia(mediaId /* ya no usamos fileName */) 
         'Content-Type': 'application/json'
       }
     });
-    logger.info('✅ Imagen reenviada con éxito:', data);
+    logger.info(`✅ ${mediaType.charAt(0).toUpperCase()+mediaType.slice(1)} reenviado con éxito:`, data);
     return data;
   } catch (err) {
-    logger.error(`❌ Error reenviando mediaId=${mediaId}:`,
+    logger.error(`❌ Error reenviando ${mediaType} mediaId=${mediaId}:`,
                  err.response?.data || err.message);
     throw err;
   }
