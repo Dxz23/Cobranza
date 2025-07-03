@@ -1,6 +1,10 @@
 // src/routes/comprobantesRoutes.js
 import express from 'express';
-import { getComprobantesMetadata } from '../services/comprobantesStore.js';
+import {
+  getComprobantesMetadata,
+  getCounters
+} from '../services/comprobantesStore.js';
+import phoneLines from '../config/phoneLines.js'; // si creaste el catálogo
 
 const router = express.Router();
 
