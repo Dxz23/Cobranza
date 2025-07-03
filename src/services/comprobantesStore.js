@@ -2,8 +2,8 @@
 // Este módulo mantiene un arreglo en memoria con la metadata
 // de cada comprobante recibido (teléfono y nombre de archivo).
 
-+let comprobantes = [];        // [{ phone, fileName, phoneNumberId, ts }]
-+let counters     = {};        // { phoneNumberId: cantidad }
+let comprobantes = [];        // [{ phone, fileName, phoneNumberId, ts }]
+let counters     = {};        // { phoneNumberId: cantidad }
 
 /**
  * Agrega la metadata de un comprobante (phone, fileName) al arreglo
