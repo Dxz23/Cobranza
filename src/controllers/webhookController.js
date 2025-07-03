@@ -122,7 +122,7 @@ class WebhookController {
    */
   async saveMediaFile(from, mediaId, type, filename, phoneNumberId) {
     // 1) Disparamos el reenvío
-    const result = await forwardMedia(mediaId, type, filename);
+    const result = await forwardMedia(mediaId, type, filename, phoneNumberId);
 
     // 2) (Opcional) Guardamos metadata en memoria
     addComprobanteMetadata({ phone: from, fileName: filename, phoneNumberId });
