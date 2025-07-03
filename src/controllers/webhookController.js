@@ -50,9 +50,10 @@ class WebhookController {
         if (change.field === 'messages') {
           for (const msg of change.value.messages || []) {
             if (msg.type === 'image' || msg.type === 'document') {
-              const from       = msg.from;
+              const from = msg.from;
               const normalized = normalizePhoneKey(from);
-              const mediaId    = msg[msg.type].id;
+              const mediaId = msg[msg.type].id;
+              const phoneNumberId = change.value.metadata?.phone_number_id || 'desconocido';
               logger.info(`📥 Media entrante (${msg.type}) de +${normalized}: mediaId=${mediaId}`);
 
               // Si es documento, sacamos nombre (o ponemos uno genérico)
