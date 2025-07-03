@@ -17,4 +17,19 @@ router.get('/comprobantes', (req, res) => {
 // Servir archivos estáticos de la carpeta "comprobantes"
 router.use('/comprobantes', express.static('comprobantes'));
 
+// (nuevo) Contador, con alias amigables si existen
+router.get('/comprobantes/stats', (req, res) => {
+  const raw = getCounters(); // { id: n }
+  const pretty = Object.fromEntries(
+    Object.entries(raw).map(([id, n]) => [
+      phoneLines[id]?.alias || id,  // usa alias si existe
+      n
+    ])
+  );
+  res.json(pretty);
+ });
+
+
+
+
 export default router;
