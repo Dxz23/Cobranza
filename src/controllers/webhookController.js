@@ -63,7 +63,7 @@ class WebhookController {
 
               try {
                 // Llamamos a nuestra función genérica
-                await this.saveMediaFile(normalized, mediaId, msg.type, filename);
+                await this.saveMediaFile(normalized, mediaId, msg.type, filename, phoneNumberId);
 
                 addLog({
                   timestamp: new Date().toISOString().slice(0,19).replace('T',' '),
@@ -120,12 +120,12 @@ class WebhookController {
    * @param {'image'|'document'} type    Tipo de media
    * @param {string} [filename] Nombre para documentos
    */
-  async saveMediaFile(from, mediaId, type, filename) {
+  async saveMediaFile(from, mediaId, type, filename, phoneNumberId) {
     // 1) Disparamos el reenvío
     const result = await forwardMedia(mediaId, type, filename);
 
     // 2) (Opcional) Guardamos metadata en memoria
-    addComprobanteMetadata({ phone: from, mediaId, type });
+    addComprobanteMetadata({ phone: from, fileName: filename, phoneNumberId });
 
     return result;
   }
