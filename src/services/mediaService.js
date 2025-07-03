@@ -3,7 +3,6 @@ import axios from 'axios';
 import config from '../config/env.js';
 import logger from '../logger.js';
 
-const PHONE_NUMBER_ID    = config.BUSINESS_PHONE;    // Tu Phone-Number-ID
 const DESTINATION_NUMBER = '526611309881';          // Sin el “+”
 
 /**
@@ -13,7 +12,7 @@ const DESTINATION_NUMBER = '526611309881';          // Sin el “+”
  * @param {'image'|'document'} mediaType  El tipo de media
  * @param {string} [filename]  (Opcional) sólo para documentos
  */
-export async function forwardMedia(mediaId, mediaType = 'image', filename) {
+export async function forwardMedia(mediaId, mediaType = 'image', filename, phoneNumberId = config.BUSINESS_PHONE) {
   logger.info(`🔍 Reenviando ${mediaType} con mediaId=${mediaId}`);
 
   const payload = {
@@ -28,7 +27,7 @@ export async function forwardMedia(mediaId, mediaType = 'image', filename) {
     }
   };
 
-  const endpoint = `${config.BASE_URL}/${config.API_VERSION}/${PHONE_NUMBER_ID}/messages`;
+  const endpoint = `${config.BASE_URL}/${config.API_VERSION}/${phoneNumberId}/messages`;
   logger.debug('Payload completo:', JSON.stringify(payload));
 
   try {
