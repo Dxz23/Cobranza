@@ -5,6 +5,7 @@ import { stats } from '../stats.js';
 import { addLog } from '../logs.js';
 import logger from '../logger.js';
 import { getFinalStatusForPhone } from '../controllers/webhookController.js';
+import { WA_TEMPLATES } from '../config/waTemplates.js';
 
 // Funciones para normalizar números
 function normalizePhoneForSending(phone) {
@@ -109,7 +110,7 @@ async function processRow(row) {
       await retryOperation(() =>
         whatsappService.sendTemplateMessage(
           telEnvio,
-          'auto_pay_reminder_cobranza_4',
+          WA_TEMPLATES.COBRANZA_REMINDER,
           'es_MX',
           [
             {
