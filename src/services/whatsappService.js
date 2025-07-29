@@ -1,7 +1,9 @@
 // src/services/whatsappService.js
 import axios from 'axios';
 import config from '../config/env.js';
+import logger  from '../logger.js';
 
+const BLOCKED_TEMPLATES = new Set(['auto_pay_reminder_cobranza_3']);
 class WhatsAppService {
   /**
    * Envía un mensaje de plantilla a un número de WhatsApp.
@@ -12,11 +14,11 @@ class WhatsAppService {
    */
   async sendTemplateMessage(to, templateName, languageCode = 'es_MX', components = []) {
     // ---------- BLOQUEO DURO DE PLANTILLAS PROHIBIDAS ----------
-    const BLOCKED_TEMPLATES = new Set(['auto_pay_reminder_cobranza_3']);
     if (BLOCKED_TEMPLATES.has(templateName)) {
         logger.error(`❌ Plantilla bloqueada: ${templateName}`);
         throw new Error('Plantilla bloqueada localmente');
     }
+    logger.debug('[DEBUG] Plantilla →', templateName, 'dest:', to); // útil para pruebas
     // -----------------------------------------------------------
     const data = {
       messaging_product: 'whatsapp',
