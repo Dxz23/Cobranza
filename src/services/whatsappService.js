@@ -11,6 +11,13 @@ class WhatsAppService {
    * @param {Array} components - Parámetros para personalizar la plantilla
    */
   async sendTemplateMessage(to, templateName, languageCode = 'es_MX', components = []) {
+    // ---------- BLOQUEO DURO DE PLANTILLAS PROHIBIDAS ----------
+    const BLOCKED_TEMPLATES = new Set(['auto_pay_reminder_cobranza_3']);
+    if (BLOCKED_TEMPLATES.has(templateName)) {
+        logger.error(`❌ Plantilla bloqueada: ${templateName}`);
+        throw new Error('Plantilla bloqueada localmente');
+    }
+    // -----------------------------------------------------------
     const data = {
       messaging_product: 'whatsapp',
       to,
