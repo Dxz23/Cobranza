@@ -147,7 +147,7 @@ async function processRow(row) {
         await retryOperation(() =>
           whatsappService.sendTemplateMessage(
             telEnvio,
-            COBRANZA_DOMICILIO,
+            WA_TEMPLATES.COBRANZA_DOMICILIO,
             'es_MX',
             [{ type: 'body', parameters: [] }]
           )
